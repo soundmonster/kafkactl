@@ -48,6 +48,7 @@ type AvroConfig struct {
 	SchemaRegistry string
 	JSONCodec      avro.JSONCodec
 	RequestTimeout time.Duration
+	TopicSchemas   map[string]AvroSchemaConfig
 	TLS            TLSConfig
 	Username       string
 	Password       string
@@ -59,6 +60,11 @@ type TLSConfig struct {
 	Cert     string
 	CertKey  string
 	Insecure bool
+}
+
+type AvroSchemaConfig struct {
+	Keys   string
+	Values string
 }
 
 type K8sToleration struct {
@@ -154,6 +160,17 @@ func CreateClientContext() (ClientContext, error) {
 	context.Avro.TLS.Cert = viper.GetString("contexts." + context.Name + ".avro.tls.cert")
 	context.Avro.TLS.CertKey = viper.GetString("contexts." + context.Name + ".avro.tls.certKey")
 	context.Avro.TLS.Insecure = viper.GetBool("contexts." + context.Name + ".avro.tls.insecure")
+
+	context.Avro.TopicSchemas = make(map[string]AvroSchemaConfig)
+
+	for topic, _ := range viper.GetStringMap("contexts." + context.Name + ".avro.topicSchemas") {
+		schemaConfig := new(AvroSchemaConfig)
+		schemaConfig.Keys = viper.GetString("contexts." + context.Name + ".avro.topicSchemas." + topic + ".keys")
+		schemaConfig.Values = viper.GetString("contexts." + context.Name + ".avro.topicSchemas." + topic + ".values")
+
+		context.Avro.TopicSchemas[topic] = *schemaConfig
+	}
+
 	context.Avro.Username = viper.GetString("contexts." + context.Name + ".avro.username")
 	context.Avro.Password = viper.GetString("contexts." + context.Name + ".avro.password")
 	context.Protobuf.ProtosetFiles = viper.GetStringSlice("contexts." + context.Name + ".protobuf.protosetFiles")

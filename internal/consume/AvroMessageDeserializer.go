@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deviceinsight/kafkactl/v5/internal"
 	"github.com/deviceinsight/kafkactl/v5/internal/helpers/avro"
 
 	"github.com/IBM/sarama"
@@ -16,9 +17,10 @@ import (
 )
 
 type AvroMessageDeserializer struct {
-	topic     string
-	jsonCodec avro.JSONCodec
-	registry  *CachingSchemaRegistry
+	topic      string
+	jsonCodec  avro.JSONCodec
+	registry   *CachingSchemaRegistry
+	avroConfig internal.AvroConfig
 }
 
 type avroMessage struct {
@@ -97,7 +99,15 @@ func (deserializer AvroMessageDeserializer) decode(rawData []byte, flags Flags, 
 	// https://docs.confluent.io/current/schema-registry/docs/serializer-formatter.html#wire-format
 	schemaID := int(binary.BigEndian.Uint32(rawData[1:5]))
 	data := rawData[5:]
-	subject := deserializer.topic + "-" + avroSchemaType
+	topicConfig, hasCustomConfig := deserializer.avroConfig.TopicSchemas[deserializer.topic]
+	var subject string
+	if hasCustomConfig && avroSchemaType == "key" {
+		subject = topicConfig.Keys
+	} else if hasCustomConfig && avroSchemaType == "value" {
+		subject = topicConfig.Values
+	} else {
+		subject = deserializer.topic + "-" + avroSchemaType
+	}
 
 	output.Debugf("decode %s and id %d", subject, schemaID)
 
@@ -146,12 +156,15 @@ func (deserializer AvroMessageDeserializer) decode(rawData []byte, flags Flags, 
 
 func (deserializer AvroMessageDeserializer) CanDeserialize(topic string) (bool, error) {
 	subjects, err := deserializer.registry.Subjects()
+	avroTopicSchemaConfig, hasCustomMapping := deserializer.avroConfig.TopicSchemas[topic]
 
 	if err != nil {
 		return false, errors.Wrap(err, "failed to list available avro schemas")
 	}
 
-	if util.ContainsString(subjects, topic+"-key") {
+	if hasCustomMapping && (avroTopicSchemaConfig.Keys != "" || avroTopicSchemaConfig.Values != "") {
+		return true, nil
+	} else if util.ContainsString(subjects, topic+"-key") {
 		return true, nil
 	} else if util.ContainsString(subjects, topic+"-value") {
 		return true, nil

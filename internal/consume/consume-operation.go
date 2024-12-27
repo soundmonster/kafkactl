@@ -97,7 +97,7 @@ func (operation *Operation) Consume(topic string, flags Flags) error {
 		}
 
 		deserializer := AvroMessageDeserializer{topic: topic, registry: CreateCachingSchemaRegistry(client),
-			jsonCodec: clientContext.Avro.JSONCodec}
+			jsonCodec: clientContext.Avro.JSONCodec, avroConfig: clientContext.Avro}
 
 		deserializers = append(deserializers, deserializer)
 	}
